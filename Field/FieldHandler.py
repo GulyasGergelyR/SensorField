@@ -1,7 +1,5 @@
 from collections import OrderedDict
 
-import Tkinter
-
 size = 64
 
 
