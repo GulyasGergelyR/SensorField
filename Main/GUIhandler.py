@@ -1,7 +1,7 @@
 from tkinter import *
 from tkinter import ttk
 
-from Field.FieldHandler import Field
+from Field.FieldHandler import Field, Selectable, Cell, Room
 
 
 class GUIHandler:
@@ -60,14 +60,13 @@ class GUIHandler:
         self._root.config(menu=menubar)
 
     def run(self):
-        self.draw()
+        self._draw()
         self._root.mainloop()
 
     def _canvas_mouse_callback(self, event):
-        print("x:"+str(event.x))
-        print("y:"+str(event.y))
         if self._field is not None:
             self._field.notify(event)
+        self._update()
 
     def _create_main_frames(self, parent):
         self._canvas = Canvas(parent, width=500, height=500)
@@ -81,20 +80,96 @@ class GUIHandler:
         parent.columnconfigure(1, weight=5)
         parent.rowconfigure(0, weight=1)
 
-    @staticmethod
-    def _create_tabs(parent):
+    def _update(self):
+        if self._selector_var.get() != 'Cell':
+            self._btn_create_room.config(state=DISABLED)
+        else:
+            self._btn_create_room.config(state=NORMAL)
+        if self._selector_var.get() != 'Room':
+            self._btn_delete_room.config(state=DISABLED)
+            self._btn_merge_rooms.config(state=DISABLED)
+        else:
+            self._btn_delete_room.config(state=NORMAL)
+            if len(Selectable.selected_elements) > 1:
+                self._btn_merge_rooms.config(state=NORMAL)
+            else:
+                self._btn_merge_rooms.config(state=DISABLED)
+
+        self._draw()
+
+    def _create_tabs(self, parent):
         n = ttk.Notebook(parent)
-        f1 = ttk.Frame(n)   # first page, which would get widgets gridded into it
+        f1 = ttk.Frame(n, width=100)   # first page, which would get widgets gridded into it
         f2 = ttk.Frame(n)   # second page
 
-        n.add(f1, text='One')
-        n.add(f2, text='Two')
+        # f1
+        self._selector_var = StringVar()
+        self._selector_var.set("Cell")
+        Label(f1, text="Select:").grid(row=0, column=0, sticky="nw")
+        modes = [("Cells", "Cell", 0), ("Rooms", "Room", 1), ("Sensors", "Sensor", 2)]
+
+        def sel():
+            Selectable.remove_elements()
+            Selectable.selector_target = self._selector_var.get()
+            self._update()
+        for t, v, i in modes:
+            Radiobutton(f1, text=t, variable=self._selector_var, value=v, command=sel).grid(row=i, column=0, sticky="nw")
+
+        def create_room():
+            selected_elements = Selectable.selected_elements
+            temp = []
+            for se in selected_elements:
+                if isinstance(se, Cell):
+                    if se.room_id == -1:
+                        temp += [se.pos]
+            if len(temp):
+                self._field.create_new_room(temp)
+                Selectable.remove_elements()
+            self._update()
+        self._btn_create_room = Button(f1, text='Create Room', width=30, command=create_room)
+        self._btn_create_room.grid(row=4, column=0, sticky="nw")
+
+        def delete_room():
+            selected_elements = Selectable.selected_elements
+            temp = []
+            for se in selected_elements:
+                if isinstance(se, Room):
+                    temp += [se]
+            if len(temp):
+                self._field.delete_room(temp)
+                Selectable.remove_elements()
+            self._update()
+        self._btn_delete_room = Button(f1, text='Delete Room', width=30, command=delete_room, state=DISABLED)
+        self._btn_delete_room.grid(row=5, column=0, sticky="nw")
+
+        def merge_rooms():
+            selected_elements = Selectable.selected_elements
+            temp = []
+            for se in selected_elements:
+                if isinstance(se, Room):
+                    temp += [se]
+            if len(temp) > 1:
+                cells = []
+                # Create copy of cells
+                for room in temp:
+                    cells.extend(room.cells)
+                # Delete rooms
+                self._field.delete_room(temp)
+                # Create one room to rule them all
+                self._field.create_new_room(cells)
+                Selectable.remove_elements()
+            self._update()
+        self._btn_merge_rooms = Button(f1, text='Merge Rooms', width=30, command=merge_rooms, state=DISABLED)
+        self._btn_merge_rooms.grid(row=6, column=0, sticky="nw")
+
+        n.add(f1, text='Create Field')
+        n.add(f2, text='Analyze Field')
         return n
 
     def add_field(self, field):
         self._field = field
 
-    def draw(self):
+    def _draw(self):
         # Draw cells
         self._field.draw(self._canvas)
 

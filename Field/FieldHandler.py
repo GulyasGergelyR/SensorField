@@ -1,16 +1,17 @@
 from collections import OrderedDict
 from tkinter import ALL
 
-size = 10
+size = 20
 cell_size = 20
-step_size = 1
+
 
 drawing_offset = 20
 
+
 class Selectable:
-    selected = []
+    selected_elements = []
     only1allowed = False
-    selector_target = Cell.__name__
+    selector_target = 'Cell'
 
     def __init__(self, color="#6984c9", selected_color="#3607ea"):
         self._selected = False
@@ -21,16 +22,22 @@ class Selectable:
 
     def select(self, b=True):
         if self.only1allowed:
-            for s in self.selected:
+            for s in self.selected_elements:
                 s.selected = False
-            self.selected = []
+            self.selected_elements = []
 
         if self.__class__.__name__ == self.selector_target and b:
             self._selected = True
-            Selectable.selected += [self]
-        elif self in Selectable.selected:
+            Selectable.selected_elements += [self]
+        elif self in Selectable.selected_elements:
             self._selected = False
-            Selectable.selected.remove(self)
+            Selectable.selected_elements.remove(self)
+
+    @staticmethod
+    def remove_elements():
+        for se in Selectable.selected_elements:
+            se._selected = False
+        Selectable.selected_elements = []
 
     @property
     def color(self):
@@ -43,6 +50,10 @@ class Selectable:
         if self._selected:
             return self._selected_width
         return self._width
+
+    @property
+    def selected(self):
+        return self._selected
 
 
 class Field:
@@ -64,15 +75,15 @@ class Field:
     def notify(self, event):
         m_x = event.x
         m_y = event.y
-        if Selectable.selector_target == Cell.__name__:
+        if Selectable.selector_target == 'Cell':
             for row in self._cells:
                 for cell in row:
                     if cell.point_is_inside(m_x, m_y):
-                        cell.select()
-        if Selectable.selector_target == Room.__name__:
+                        cell.select(not cell.selected)
+        if Selectable.selector_target == 'Room':
             for room in self._rooms.values():
                 if room.point_is_inside(m_x, m_y):
-                    room.select()
+                    room.select(not room.selected)
 
     def create_new_room(self, cells):
         r_id = 1
@@ -82,6 +93,13 @@ class Field:
         room.add_cells(cells)
         self.init_walls_in(room)
         self._rooms[r_id] = room
+
+    def delete_room(self, rooms):
+        for room in rooms:
+            if room in self._rooms.values():
+                self._rooms.pop(room.id)
+                for cell in room.cells:
+                    cell.remove_room()
 
     def get_room(self, r_id):
         if r_id in self._rooms.keys():
@@ -193,7 +211,7 @@ class Room(Selectable):
         self._walls = []
 
     def point_is_inside(self, m_x, m_y):
-        return any([cell.point_is_inside(m_x, m_y)] for cell in self._cells)
+        return any([cell.point_is_inside(m_x, m_y) for cell in self._cells])
 
 
 class Cell(Selectable):
@@ -202,11 +220,11 @@ class Cell(Selectable):
         self._room_id = -1
         self._room = None
         self._pos = [i, j]
-        self._sides = [None, None, None, None]
         self._corners = corners
 
-    def add_wall(self, wall):
-        self._sides[wall.orientation] = wall
+    def remove_room(self):
+        self._room = None
+        self._room_id = -1
 
     def get_corners_at(self, o):
         # Left upper - 0, Right upper - 1, Right bottom - 2, Left bottom - 3
@@ -238,7 +256,6 @@ class Cell(Selectable):
     @room.setter
     def room(self, room):
         self._room = room
-        print("id: "+str(room.id))
         self._room_id = room.id
 
     @property
@@ -265,6 +282,7 @@ class Wall(Selectable):
         self._orientation = o
         self._corners = cell.get_corners_at(o)
         cell.room.add_wall(self)
+        self._room = cell.room
         self._e2l = None  # element to the left
         self._e2r = None  # element to the right
 
