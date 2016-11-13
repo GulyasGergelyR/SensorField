@@ -3,7 +3,7 @@ from tkinter import ALL
 
 size = 20
 cell_size = 20
-
+step_size = 0.1
 
 drawing_offset = 20
 
@@ -250,6 +250,12 @@ class Cell(Selectable):
         return self._pos
 
     @property
+    def get_pos(self):
+        x = drawing_offset + self._pos[1] * cell_size
+        y = drawing_offset + self._pos[0] * cell_size
+        return [x, y]
+
+    @property
     def room(self):
         return self._room
 
@@ -274,6 +280,20 @@ class Corner:
     @property
     def pos(self):
         return self._pos
+
+
+class Pixel:
+    def __init__(self, i, j, cell):
+        self._cell = cell
+        self._pos = [i, j]
+        self._number_of_sensor = 0
+
+    def get_pos(self):
+        base_pos = self._cell.get_pos()
+        return [base_pos[0] + self._pos[0] * step_size, base_pos[1] + self._pos[1] * step_size]
+
+    def draw(self):
+        pass
 
 
 class Wall(Selectable):
@@ -307,6 +327,13 @@ class Wall(Selectable):
     @property
     def corners(self):
         return self._corners
+
+    def get_pos(self):
+        x1 = drawing_offset + self._corners[0].pos[1] * cell_size
+        y1 = drawing_offset + self._corners[0].pos[0] * cell_size
+        x2 = drawing_offset + self._corners[1].pos[1] * cell_size
+        y2 = drawing_offset + self._corners[1].pos[0] * cell_size
+        return [[x1, y1], [x2, y2]]
 
     @property
     def e2l(self):

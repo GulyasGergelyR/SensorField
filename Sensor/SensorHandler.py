@@ -1,6 +1,6 @@
 from Field.FieldHandler import Selectable, drawing_offset, cell_size
 
-step_size = 0.1
+
 
 
 class Sensor(Selectable):
