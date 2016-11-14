@@ -213,11 +213,7 @@ class Field:
 
     @staticmethod
     def _connect_walls_in(room):
-        for wall in room.walls:
-            for w in room.walls:
-                if wall != w:
-                    if wall.try_to_connect(w):
-                        break
+        room.connect_walls()
 
     def check_room_sensors_visibility(self):
         for room in self._rooms.values():
@@ -272,9 +268,43 @@ class Room(Selectable):
         self._pixels = []
         self._sensors = []
 
+        self._polygon = []
+        self._wall_functions = []
+
+    @property
+    def polygon(self):
+        return self._polygon
+
+    @property
+    def wall_functions(self):
+        return self._wall_functions
+
     @property
     def sensors(self):
         return self._sensors
+
+    def connect_walls(self):
+        for wall in self._walls:
+            for w in self._walls:
+                if wall != w:
+                    if wall.try_to_connect(w):
+                        break
+
+    def _create_polygon(self):
+        self._wall_functions = []
+        self._polygon = [wall.corners[1].get_pos() for wall in self._walls]
+        for i in range(len(self._polygon)):
+            self._wall_functions += self._function(self._polygon[i], self._polygon[(i + 1) % len(self._polygon)])
+
+    @staticmethod
+    def _function(p1, p2):
+        if p1[0] == p2[0]:
+            return [None, p1[0]]
+        else:
+            # y = mx + b
+            m = (p2[1]-p1[1])/(p2[0]-p1[0])
+            b = p1[1]-p1[0]*m
+            return [m, b]
 
     def create_sensor_on(self, wall, pos=cell_size//2, alpha=0):
         if isinstance(wall, int):
@@ -407,6 +437,9 @@ class Corner:
     def pos(self):
         return self._pos
 
+    def get_pos(self):
+        return [self._pos[1]*cell_size, self._pos[0]*cell_size]
+
 
 class Pixel:
     def __init__(self, i, j, cell):
@@ -469,6 +502,31 @@ class Pixel:
             pass
 
         self._number_of_sensors += 1
+
+    def check_sensor_visibility2(self, room, sensor):
+        sp = sensor.get_pos()
+        pp = self.get_pos()
+
+        v = [pp[0] - sp[0], pp[1] - sp[1]]
+
+        if self._dist(sp, pp) > sensor.effect_radius or self._a(v, sensor.get_look_dir()) < sensor.effect_arc:
+            return
+
+        for function in room.wall_functions:
+            pass
+
+        self._number_of_sensors += 1
+        sensor._number_of_pixels += 1
+
+    @staticmethod
+    def _function(p1, p2):
+        if p1[0] == p2[0]:
+            return [None, p1[0]]
+        else:
+            # y = mx + b
+            m = (p2[1] - p1[1]) / (p2[0] - p1[0])
+            b = p1[1] - p1[0] * m
+            return [m, b]
 
     def draw(self, canvas):
         color = "#ff"
