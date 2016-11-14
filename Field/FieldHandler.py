@@ -289,12 +289,17 @@ class Room(Selectable):
                 if wall != w:
                     if wall.try_to_connect(w):
                         break
+        self._create_polygon()
 
     def _create_polygon(self):
         self._wall_functions = []
-        self._polygon = [wall.corners[1].get_pos() for wall in self._walls]
+        self._polygon = []
+        w_temps = [self._walls[0]]
+        for i in range(1, len(self._walls)):
+            w_temps += [w_temps[-1].e2r]
+        self._polygon += [w_temp.corners[1].get_pos() for w_temp in w_temps]
         for i in range(len(self._polygon)):
-            self._wall_functions += function(self._polygon[i], self._polygon[(i + 1) % len(self._polygon)])
+            self._wall_functions += [function(self._polygon[i], self._polygon[(i + 1) % len(self._polygon)])]
 
     def create_sensor_on(self, wall, pos=cell_size//2, alpha=0):
         if isinstance(wall, int):
@@ -343,12 +348,13 @@ class Room(Selectable):
         return any([cell.point_is_inside(m_x, m_y) for cell in self._cells])
 
     def check_sensors_visibility(self):
+        for sensor in self._sensors:
+            sensor.number_of_pixels = 0
         for cell in self._cells:
             for pixel in cell.pixels:
                 pixel.number_of_sensors = 0
                 for sensor in self._sensors:
-                    pixel.check_sensor_visibility(self._field, sensor)
-
+                    pixel.check_sensor_visibility(self, sensor)
 
 class Cell(Selectable):
     def __init__(self, i, j, corners, color="#006666", selected_color="#0066ff"):
@@ -472,7 +478,7 @@ class Pixel:
             return  # if farther then effect radius or not in effect arc
         v_f = function(sp, pp)  # create function for ray
         for f in room.wall_functions:  # get function for wall
-            if functions_intersect(f, v_f, sp[0], pp[0]):
+            if functions_intersect(f, v_f):
                 break
         else:
             self._number_of_sensors += 1
@@ -516,10 +522,13 @@ class Wall(Selectable):
             self._e2r = wall
             wall._e2l = self
             return True
-        elif self._corners[1] in wall.corners:
+        """
+        if self._corners[1] in wall.corners:
             self._e2l = wall
             wall._e2r = self
+            print()
             return True
+        """
         return False
 
     @property
