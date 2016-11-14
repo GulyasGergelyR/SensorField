@@ -8,6 +8,8 @@ cell_size = 20
 step_size = 1
 
 drawing_offset = 20
+d_m = 2
+d_cell_size = cell_size * d_m
 
 
 class Selectable:
@@ -99,19 +101,23 @@ class Field:
 
     def calculate_cost(self):
         self._cost = 0
+        room_cost = 0
         for room in self._rooms.values():
             for cell in room.cells:
                 for pixel in cell.pixels:
                     if pixel.number_of_sensors == 0:
-                        self._cost += 1
+                        room_cost += 2
                     if pixel.number_of_sensors > 1:
-                        self._cost += pixel.number_of_sensors-1
-
+                        room_cost += pixel.number_of_sensors-1
+            for sensor in room.sensors:
+                room_cost += sensor.max_number_of_pixels-sensor.number_of_pixels
+            # self._cost += room_cost / len(room.sensors)
+            self._cost += room_cost
         return self._cost
 
     def notify(self, event):
-        m_x = event.x
-        m_y = event.y
+        m_x = (event.x - drawing_offset) / d_m
+        m_y = (event.y - drawing_offset) / d_m
         if Selectable.selector_target == 'Cell':
             for row in self._cells:
                 for cell in row:
@@ -238,8 +244,9 @@ class Field:
         x = drawing_offset
         y = drawing_offset
         for i in range(size+1):
-            canvas.create_line(x + i * cell_size, y, x + i * cell_size, y+size*cell_size, fill="#1f5a56")
-            canvas.create_line(x, y + i * cell_size, x + size * cell_size, y + i * cell_size, fill="#1f5a56")
+            #canvas.create_line(x + i * d_cell_size, y, x + i * d_cell_size, y + size * d_cell_size, fill="#1f5a56")
+            #canvas.create_line(x, y + i * d_cell_size, x + size * d_cell_size, y + i * d_cell_size, fill="#1f5a56")
+            pass
 
         for room in self._rooms.values():
             for wall in room.walls:
@@ -356,6 +363,7 @@ class Room(Selectable):
                 for sensor in self._sensors:
                     pixel.check_sensor_visibility(self, sensor)
 
+
 class Cell(Selectable):
     def __init__(self, i, j, corners, color="#006666", selected_color="#0066ff"):
         super(Cell, self).__init__(color, selected_color)
@@ -384,14 +392,13 @@ class Cell(Selectable):
         return [self._corners[o], self._corners[(o+1) % 4]]
 
     def draw(self, canvas):
-        x = drawing_offset + self._pos[1] * cell_size
-        y = drawing_offset + self._pos[0] * cell_size
-        canvas.create_rectangle(x, y, x+cell_size, y+cell_size, fill=self.color)
+        x = drawing_offset + self._pos[1] * cell_size * d_m
+        y = drawing_offset + self._pos[0] * cell_size * d_m
+        canvas.create_rectangle(x, y, x+d_cell_size, y+d_cell_size, fill=self.color)
 
     def point_is_inside(self, m_x, m_y):
-        x = drawing_offset + self._pos[1] * cell_size
-        y = drawing_offset + self._pos[0] * cell_size
-
+        x = self._pos[1] * cell_size
+        y = self._pos[0] * cell_size
         return x < m_x < x+cell_size and y < m_y < y + cell_size
 
     @property
@@ -489,8 +496,9 @@ class Pixel:
         level = 255-self._number_of_sensors*40
         color += '{0:02X}00'.format(level if level > 0 else 0)
         if self._number_of_sensors > 0:
-            pos = [p + drawing_offset for p in self.get_pos()]
-            canvas.create_line(pos[0], pos[1], pos[0]+1, pos[1]+1, fill=color)
+            pos = [p * d_m + drawing_offset for p in self.get_pos()]
+            for d_mi in range(d_m):
+                canvas.create_line(pos[0], pos[1] + d_mi, pos[0]+1 * d_m, pos[1] + d_mi, fill=color)
 
     @property
     def number_of_sensors(self):
@@ -563,15 +571,15 @@ class Wall(Selectable):
         return [[x1, y1], [x2, y2]]
 
     def draw(self, canvas):
-        x1 = drawing_offset + self._corners[0].pos[1] * cell_size
-        y1 = drawing_offset + self._corners[0].pos[0] * cell_size
-        x2 = drawing_offset + self._corners[1].pos[1] * cell_size
-        y2 = drawing_offset + self._corners[1].pos[0] * cell_size
+        x1 = drawing_offset + self._corners[0].pos[1] * cell_size * d_m
+        y1 = drawing_offset + self._corners[0].pos[0] * cell_size * d_m
+        x2 = drawing_offset + self._corners[1].pos[1] * cell_size * d_m
+        y2 = drawing_offset + self._corners[1].pos[0] * cell_size * d_m
         canvas.create_line(x1, y1, x2, y2, fill=self.color, width=self.width)
 
     def dist_from(self, m_x, m_y):
         p = self.get_pos()
-        p = [(p[0][0]+p[1][0])/2 + drawing_offset, (p[0][1]+p[1][1])/2 + drawing_offset]
+        p = [(p[0][0] +p [1][0]) / 2, (p[0][1] + p[1][1]) / 2]
         return dist(p, [m_x, m_y])
 
     def point_is_inside(self, m_x, m_y):

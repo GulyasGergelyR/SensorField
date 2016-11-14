@@ -6,7 +6,7 @@ from Field.FieldHandler import cell_size
 
 class Evolution:
     number_of_generations = 20
-    number_of_fields = 5
+    number_of_fields = 30
 
     def __init__(self, field):
         self._base_field = field.create_copy()
@@ -18,6 +18,7 @@ class Evolution:
     def _init_first_generation(self):
         first_generation = Generation()
         for gi in range(self.number_of_fields):
+            print("Creating Field: ", gi)
             field_copy = self._base_field.create_copy()
             # add random sensors
             for room in field_copy.rooms.values():
@@ -26,7 +27,7 @@ class Evolution:
                 nos = random.randint(num_of_sensors-num_of_sensors//3, num_of_sensors+num_of_sensors//3)
                 for s in range(nos):
                     wall = random.randint(0, num_of_walls-1)
-                    pos = random.randint(0, cell_size-1)
+                    pos = random.randint(1, cell_size-2)
                     alpha = random.random()*1.57-0.785
                     room.create_sensor_on(wall, pos, alpha)
             field_copy.check_room_sensors_visibility()

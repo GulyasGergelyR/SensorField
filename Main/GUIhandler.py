@@ -254,9 +254,14 @@ class GUIHandler:
             index = int(w.curselection()[0])
             self._field = self._evolution.get_generation(-1).fields[index]
             self._update()
-        self._lb_field = Listbox(f2, width=30, selectmode=SINGLE)
+
+        self._sb_field = Scrollbar(f2)
+        self._lb_field = Listbox(f2, height=20, width=30, selectmode=SINGLE)
         self._lb_field.bind('<<ListboxSelect>>', field_selected)
         self._lb_field.grid(row=grid_level, column=0, sticky="nw")
+        self._sb_field.grid(row=grid_level, column=1, sticky="nw")
+        self._lb_field.config(yscrollcommand=self._sb_field.set)
+        self._sb_field.config(command=self._lb_field.yview)
         grid_level += 1
 
         n.add(f1, text='Create Field')
