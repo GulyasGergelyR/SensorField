@@ -1,6 +1,7 @@
 import math
 
 from Field.FieldHandler import drawing_offset, cell_size, step_size, Selectable
+from Field.functions import dist
 
 
 class Sensor(Selectable):
@@ -12,7 +13,17 @@ class Sensor(Selectable):
         self._draw_radius = 3
         self._select_radius = 6
         self._effect_radius = 40  # in step_size
-        self._effect_arc = 0.5  # cos(60)
+        self._effect_arc = 0.5  # cos(60) = 0.5
+
+        self._number_of_pixels = 0
+
+    @property
+    def number_of_pixels(self):
+        return self._number_of_pixels
+
+    @number_of_pixels.setter
+    def number_of_pixels(self, value):
+        self._number_of_pixels = value
 
     @property
     def room_id(self):
@@ -48,14 +59,6 @@ class Sensor(Selectable):
         canvas.create_oval(pos[0] - self._draw_radius, pos[1] - self._draw_radius,
                            pos[0] + self._draw_radius, pos[1] + self._draw_radius, fill=self.color)
 
-    @staticmethod
-    def _sqr(v):
-        return v*v
-
-    def _dist(self, p1, p2):
-        return self._sqr(p1[0] - p2[0]) + self._sqr(p1[1] - p2[1])
-
     def point_is_inside(self, m_x, m_y):
         pos = [p + drawing_offset for p in self.get_pos()]
-        return self._dist(pos, [m_x, m_y]) < self._sqr(self._draw_radius * 2)
-
+        return dist(pos, [m_x, m_y]) < self._select_radius

@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from tkinter import ALL
 
-import math
+from Field.functions import *
 
 size = 15
 cell_size = 20
@@ -136,19 +136,19 @@ class Field:
                     d = cell_size+1
                     w = None
                     for wall in temp:
-                        dist = wall.dist_from(m_x, m_y)
-                        w = wall if dist < d else w
-                        d = dist if dist < d else d
+                        distance = wall.dist_from(m_x, m_y)
+                        w = wall if distance < d else w
+                        d = distance if distance < d else d
                     if w is not None:
                         w.select(not w.selected)
 
-    def create_new_room(self, cells, id=None):
-        if id is None:
+    def create_new_room(self, cells, new_r_id=None):
+        if new_r_id is None:
             r_id = 1
             while r_id in self._rooms.keys():
                 r_id += 1
         else:
-            r_id = id
+            r_id = new_r_id
         room = Room(self, r_id)
         room.add_cells(cells)
         self.init_walls_in(room)
@@ -209,7 +209,7 @@ class Field:
 
     def _connect_walls(self):
         for room in self._rooms:
-            self._connect_walls_in(room)
+            room.connect_walls()
 
     @staticmethod
     def _connect_walls_in(room):
@@ -294,17 +294,7 @@ class Room(Selectable):
         self._wall_functions = []
         self._polygon = [wall.corners[1].get_pos() for wall in self._walls]
         for i in range(len(self._polygon)):
-            self._wall_functions += self._function(self._polygon[i], self._polygon[(i + 1) % len(self._polygon)])
-
-    @staticmethod
-    def _function(p1, p2):
-        if p1[0] == p2[0]:
-            return [None, p1[0]]
-        else:
-            # y = mx + b
-            m = (p2[1]-p1[1])/(p2[0]-p1[0])
-            b = p1[1]-p1[0]*m
-            return [m, b]
+            self._wall_functions += function(self._polygon[i], self._polygon[(i + 1) % len(self._polygon)])
 
     def create_sensor_on(self, wall, pos=cell_size//2, alpha=0):
         if isinstance(wall, int):
@@ -453,80 +443,40 @@ class Pixel:
         return [base_pos[0] + (self._pos[1] % cell_size/step_size) * step_size, base_pos[1]
                 + (self._pos[0] % cell_size/step_size) * step_size]
 
-    @staticmethod
-    def _sqr(v):
-        return v*v
-
-    def _dist(self, p1, p2):
-        return math.sqrt(self._sqr(p1[0] - p2[0]) + self._sqr(p1[1] - p2[1]))
-
-    def _len(self, v):
-        return math.sqrt(self._sqr(v[0])+self._sqr(v[1]))
-
-    @staticmethod
-    def _m(v, m):
-        return [m*v[0], m*v[1]]
-
-    def _norm(self, v):
-        return [v[0]/self._len(v), v[1]/self._len(v)]
-
-    def _set(self, v, m):
-        return self._m(self._norm(v), m)
-
-    def _a(self, v1, v2):
-        l1 = self._len(v1)
-        l2 = self._len(v2)
-        if l1 == 0 or l2 == 0:
-            return 0
-        return (v1[0]*v2[0]+v1[1]*v2[1])/self._len(v1)/self._len(v2)
-
-    def check_sensor_visibility(self, field, sensor):
+    def check_sensor_visibility2(self, field, sensor):
         sp = sensor.get_pos()
         pp = self.get_pos()
 
         v = [pp[0] - sp[0], pp[1] - sp[1]]
 
-        if self._dist(sp, pp) > sensor.effect_radius or self._a(v, sensor.get_look_dir()) < sensor.effect_arc:
+        if dist(sp, pp) > sensor.effect_radius or a(v, sensor.get_look_dir()) < sensor.effect_arc:
             return
 
         # TODO add other step size compatibility
 
         # Check pixels in between if valid room point or a wall
-        for r in range(int(self._dist(sp, pp)/step_size)):
-            v_temp = self._set(v, (r+1)*step_size)
+        for r in range(int(dist(sp, pp)/step_size)):
+            v_temp = set_l(v, (r+1)*step_size)
             temp_p = [sp[0]+int(v_temp[0]), sp[1]+int(v_temp[1])]
             pixel = field.pixels[temp_p[1]][temp_p[0]]
             if pixel.room_id != sensor.room_id:
                 break
         else:
-            pass
+            self._number_of_sensors += 1
 
-        self._number_of_sensors += 1
-
-    def check_sensor_visibility2(self, room, sensor):
+    def check_sensor_visibility(self, room, sensor):
         sp = sensor.get_pos()
         pp = self.get_pos()
-
         v = [pp[0] - sp[0], pp[1] - sp[1]]
-
-        if self._dist(sp, pp) > sensor.effect_radius or self._a(v, sensor.get_look_dir()) < sensor.effect_arc:
-            return
-
-        for function in room.wall_functions:
-            pass
-
-        self._number_of_sensors += 1
-        sensor._number_of_pixels += 1
-
-    @staticmethod
-    def _function(p1, p2):
-        if p1[0] == p2[0]:
-            return [None, p1[0]]
+        if dist(sp, pp) > sensor.effect_radius or a(v, sensor.get_look_dir()) < sensor.effect_arc:
+            return  # if farther then effect radius or not in effect arc
+        v_f = function(sp, pp)  # create function for ray
+        for f in room.wall_functions:  # get function for wall
+            if functions_intersect(f, v_f, sp[0], pp[0]):
+                break
         else:
-            # y = mx + b
-            m = (p2[1] - p1[1]) / (p2[0] - p1[0])
-            b = p1[1] - p1[0] * m
-            return [m, b]
+            self._number_of_sensors += 1
+            sensor.number_of_pixels += 1
 
     def draw(self, canvas):
         color = "#ff"
@@ -610,17 +560,10 @@ class Wall(Selectable):
         y2 = drawing_offset + self._corners[1].pos[0] * cell_size
         canvas.create_line(x1, y1, x2, y2, fill=self.color, width=self.width)
 
-    @staticmethod
-    def _sqr(v):
-        return v*v
-
-    def _dist(self, p1, p2):
-        return math.sqrt(self._sqr(p1[0] - p2[0]) + self._sqr(p1[1] - p2[1]))
-
     def dist_from(self, m_x, m_y):
         p = self.get_pos()
         p = [(p[0][0]+p[1][0])/2 + drawing_offset, (p[0][1]+p[1][1])/2 + drawing_offset]
-        return self._dist(p, [m_x, m_y])
+        return dist(p, [m_x, m_y])
 
     def point_is_inside(self, m_x, m_y):
         return self._cell.point_is_inside(m_x, m_y)
