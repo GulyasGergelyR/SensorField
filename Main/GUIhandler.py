@@ -3,7 +3,7 @@ from tkinter import ttk
 
 from Field.FieldHandler import Field, Selectable, Cell, Room, Wall
 from Field.PopulationHandler import Evolution
-from Sensor.SensorHandler import Sensor
+from Sensor.SensorHandler import Sensor, SensorField
 
 
 class GUIHandler:
@@ -16,6 +16,7 @@ class GUIHandler:
         self._create_main_frames(self._root)
 
         self._field = None
+        self._sensor_field = None
         self._evolution = None
 
     @staticmethod
@@ -63,7 +64,7 @@ class GUIHandler:
         self._root.config(menu=menubar)
 
     def run(self):
-        self._draw()
+        self._update()
         self._root.mainloop()
 
     def _canvas_mouse_callback(self, event):
@@ -122,9 +123,14 @@ class GUIHandler:
 
         if self._evolution is not None:
             self._lb_field.delete(0, self._lb_field.size())
-            for i, f in zip(range(len(self._evolution.get_generation(-1).fields)),
-                            self._evolution.get_generation(-1).fields):
-                self._lb_field.insert(i, "Field"+str(i)+" cost:"+str(f.cost))
+            for i, f in zip(range(len(self._evolution.get_generation(-1).sensor_fields)),
+                            self._evolution.get_generation(-1).sensor_fields):
+                self._lb_field.insert(i, "Field "+str(i)+" cost: "+str(f.cost))
+
+        if self._field.sensor_field is None:
+            self._btn_refresh_sensors.config(state=DISABLED)
+        else:
+            self._btn_refresh_sensors.config(state=NORMAL)
         self._draw()
 
     def _create_tabs(self, parent):
@@ -205,9 +211,11 @@ class GUIHandler:
                 if isinstance(se, Wall):
                     temp += [se]
             if len(temp):
+                if self._field.sensor_field is None:
+                    self._field.sensor_field = SensorField(field)
                 for w in temp:
-                    r = w.room
-                    r.create_sensor_on(w)
+                    b = self._field.sensor_field.batches[w.room.id]
+                    b.create_sensor_on(w)
                 Selectable.remove_elements()
             self._update()
         self._btn_add_sensor = Button(f1, text='Add Sensor', width=30, command=add_sensor, state=DISABLED)
@@ -222,7 +230,7 @@ class GUIHandler:
                     temp += [se]
             if len(temp):
                 # Delete sensor
-                self._field.delete_sensor(temp)
+                self._field.delete_sensors(temp)
                 # Create one room to rule them all
                 Selectable.remove_elements()
             self._update()
@@ -231,8 +239,9 @@ class GUIHandler:
         grid_level += 1
 
         def refresh_sensors():
-            self._field.check_room_sensors_visibility()
-            self._update()
+            if self._field.sensor_field is not None:
+                self._field.sensor_field.check_room_sensors_visibility()
+                self._update()
         self._btn_refresh_sensors = Button(f1, text='Refresh Sensors', width=30, command=refresh_sensors)
         self._btn_refresh_sensors.grid(row=grid_level, column=0, sticky="nw")
         grid_level += 1
@@ -243,7 +252,7 @@ class GUIHandler:
 
         def analyze_field():
             self._evolution = Evolution(self._field)
-            self._lb_field.delete(0)
+            self._lb_field.delete(0, self._lb_field.size())
             self._update()
         self._btn_analyze_field = Button(f2, text='Analyze Field', width=30, command=analyze_field)
         self._btn_analyze_field.grid(row=grid_level, column=0, sticky="nw")
@@ -252,7 +261,7 @@ class GUIHandler:
         def field_selected(evt):
             w = evt.widget
             index = int(w.curselection()[0])
-            self._field = self._evolution.get_generation(-1).fields[index]
+            self._field.sensor_field = self._evolution.get_generation(-1).sensor_fields[index]
             self._update()
 
         self._sb_field = Scrollbar(f2)
@@ -268,7 +277,7 @@ class GUIHandler:
         n.add(f2, text='Analyze Field')
         return n
 
-    def add_field(self, f):
+    def add_fields(self, f):
         self._field = f
 
     def _draw(self):
@@ -280,10 +289,10 @@ if __name__ == "__main__":
     field = Field()
     field.create_new_room([[2, 2], [2, 3], [3, 3]])
     field.create_new_room([[1, 1], [1, 2], [1, 3]])
-    for room in field.rooms.values():
+    for batch in field.sensor_field.batches.values():
+        room = batch.room
         for wall in room.walls:
-            room.create_sensor_on(wall)
-    gui_handler.add_field(field)
+            batch.create_sensor_on(wall)
+    gui_handler.add_fields(field)
     gui_handler.run()
-
 

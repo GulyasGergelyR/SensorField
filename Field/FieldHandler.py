@@ -73,7 +73,9 @@ class Field:
         self._rooms = OrderedDict()
 
         self.draw_pixels = False
-        self._cost = 0
+
+        from Sensor.SensorHandler import SensorField
+        self._sensors_field = SensorField(self)
 
     def create_copy(self):
         field = Field()
@@ -82,6 +84,14 @@ class Field:
             field.create_new_room(cells, room.id)
 
         return field
+
+    @property
+    def sensor_field(self):
+        return self._sensors_field
+
+    @sensor_field.setter
+    def sensor_field(self, value):
+        self._sensors_field = value
 
     @property
     def cells(self):
@@ -94,26 +104,6 @@ class Field:
     @property
     def pixels(self):
         return self._pixels
-
-    @property
-    def cost(self):
-        return self._cost
-
-    def calculate_cost(self):
-        self._cost = 0
-        room_cost = 0
-        for room in self._rooms.values():
-            for cell in room.cells:
-                for pixel in cell.pixels:
-                    if pixel.number_of_sensors == 0:
-                        room_cost += 2
-                    if pixel.number_of_sensors > 1:
-                        room_cost += pixel.number_of_sensors-1
-            for sensor in room.sensors:
-                room_cost += sensor.max_number_of_pixels-sensor.number_of_pixels
-            # self._cost += room_cost / len(room.sensors)
-            self._cost += room_cost
-        return self._cost
 
     def notify(self, event):
         m_x = (event.x - drawing_offset) / d_m
@@ -128,10 +118,11 @@ class Field:
                 if room.point_is_inside(m_x, m_y):
                     room.select(not room.selected)
         if Selectable.selector_target == 'Sensor':
-            for room in self._rooms.values():
-                for sensor in room.sensors:
-                    if sensor.point_is_inside(m_x, m_y):
-                        sensor.select(not sensor.selected)
+            if self._sensors_field is not None:
+                for batch in self._sensors_field.batches.values():
+                    for sensor in batch.sensors:
+                        if sensor.point_is_inside(m_x, m_y):
+                            sensor.select(not sensor.selected)
         if Selectable.selector_target == 'Wall':
             for room in self._rooms.values():
                 if room.point_is_inside(m_x, m_y):
@@ -159,6 +150,7 @@ class Field:
         room.add_cells(cells)
         self.init_walls_in(room)
         self._rooms[r_id] = room
+        self._sensors_field.create_new_batch(room)
 
     def delete_room(self, rooms):
         for room in rooms:
@@ -166,15 +158,19 @@ class Field:
                 self._rooms.pop(room.id)
                 for cell in room.cells:
                     cell.remove_room()
+            if self._sensors_field is not None:
+                self._sensors_field.remove_batch(room.id)
 
-    def delete_sensor(self, sensors):
-        for sensor in sensors:
-            room = self._rooms[sensor.room_id]
-            room.remove_sensor(sensor)
+    def delete_sensors(self, sensors):
+        if self._sensors_field is not None:
+            for sensor in sensors:
+                batch = self._sensors_field.batches[sensor.room_id]
+                batch.remove_sensor(sensor)
 
-    def remove_sensors(self):
-        for room in self._rooms.values():
-            room.remove_sensors()
+    def delete_all(self):
+        if self._sensors_field is not None:
+            for batch in self._sensors_field.batches.values():
+                batch.delete_all()
 
     def get_room(self, r_id):
         if r_id in self._rooms.keys():
@@ -221,10 +217,6 @@ class Field:
     def _connect_walls_in(room):
         room.connect_walls()
 
-    def check_room_sensors_visibility(self):
-        for room in self._rooms.values():
-            room.check_sensors_visibility()
-
     def draw(self, canvas):
         canvas.delete(ALL)
         # Draw cells
@@ -253,9 +245,10 @@ class Field:
                 wall.draw(canvas)
 
     def _draw_sensors(self, canvas):
-        for room in self._rooms.values():
-            for sensor in room.sensors:
-                sensor.draw(canvas)
+        if self._sensors_field is not None:
+            for batch in self._sensors_field.batches.values():
+                for sensor in batch.sensors:
+                    sensor.draw(canvas)
 
     def _draw_pixels(self, canvas):
         for room in self._rooms.values():
@@ -271,9 +264,7 @@ class Room(Selectable):
         self._walls = []
         self._cells = []
         self._field = field
-
         self._pixels = []
-        self._sensors = []
 
         self._polygon = []
         self._wall_functions = []
@@ -285,10 +276,6 @@ class Room(Selectable):
     @property
     def wall_functions(self):
         return self._wall_functions
-
-    @property
-    def sensors(self):
-        return self._sensors
 
     def connect_walls(self):
         for wall in self._walls:
@@ -307,20 +294,6 @@ class Room(Selectable):
         self._polygon += [w_temp.corners[1].get_pos() for w_temp in w_temps]
         for i in range(len(self._polygon)):
             self._wall_functions += [function(self._polygon[i], self._polygon[(i + 1) % len(self._polygon)])]
-
-    def create_sensor_on(self, wall, pos=cell_size//2, alpha=0):
-        if isinstance(wall, int):
-            wall = self._walls[wall]
-        from Sensor.SensorHandler import Sensor
-        sensor = Sensor(wall, pos, alpha)
-        self._sensors += [sensor]
-
-    def remove_sensors(self):
-        self._sensors = []
-
-    def remove_sensor(self, sensor):
-        if sensor in self._sensors:
-            self._sensors.remove(sensor)
 
     def add_wall(self, wall):
         self._walls += [wall]
@@ -353,15 +326,6 @@ class Room(Selectable):
 
     def point_is_inside(self, m_x, m_y):
         return any([cell.point_is_inside(m_x, m_y) for cell in self._cells])
-
-    def check_sensors_visibility(self):
-        for sensor in self._sensors:
-            sensor.number_of_pixels = 0
-        for cell in self._cells:
-            for pixel in cell.pixels:
-                pixel.number_of_sensors = 0
-                for sensor in self._sensors:
-                    pixel.check_sensor_visibility(self, sensor)
 
 
 class Cell(Selectable):
@@ -477,14 +441,14 @@ class Pixel:
         else:
             self._number_of_sensors += 1
 
-    def check_sensor_visibility(self, room, sensor):
+    def check_sensor_visibility(self, batch, sensor):
         sp = sensor.get_pos()
         pp = self.get_pos()
         v = [pp[0] - sp[0], pp[1] - sp[1]]
         if dist(sp, pp) > sensor.effect_radius or a(v, sensor.get_look_dir()) < sensor.effect_arc:
             return  # if farther then effect radius or not in effect arc
         v_f = function(sp, pp)  # create function for ray
-        for f in room.wall_functions:  # get function for wall
+        for f in batch.room.wall_functions:  # get function for wall
             if functions_intersect(f, v_f):
                 break
         else:

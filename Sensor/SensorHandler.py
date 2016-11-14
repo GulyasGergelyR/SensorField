@@ -1,4 +1,5 @@
 import math
+from collections import OrderedDict
 
 from Field.FieldHandler import drawing_offset, cell_size, step_size, Selectable, d_m
 from Field.functions import dist, set_l
@@ -69,3 +70,97 @@ class Sensor(Selectable):
     def point_is_inside(self, m_x, m_y):
         pos = self.get_pos()
         return dist(pos, [m_x, m_y]) < self._select_radius
+
+
+class SensorField:
+    def __init__(self, field):
+        self._field = field
+        self._batches = OrderedDict()
+        self._cost = 0
+        for room in field.rooms.values():
+            self._batches[room.id] = SensorBatch(room)
+
+    @property
+    def cost(self):
+        return self._cost
+
+    @property
+    def batches(self):
+        return self._batches
+
+    def create_new_batch(self, room):
+        self._batches[room.id] = SensorBatch(room)
+
+    def check_room_sensors_visibility(self):
+        for batch in self._batches.values():
+            batch.check_sensors_visibility()
+
+    def calculate_cost(self):
+        self._cost = 0
+        room_cost = 0
+        for batch in self._batches.values():
+            room = batch.room
+            for cell in room.cells:
+                for pixel in cell.pixels:
+                    if pixel.number_of_sensors == 0:
+                        room_cost += 2
+                    if pixel.number_of_sensors > 1:
+                        room_cost += pixel.number_of_sensors-1
+            for sensor in batch.sensors:
+                room_cost += sensor.max_number_of_pixels-sensor.number_of_pixels
+            # self._cost += room_cost / len(room.sensors)
+            self._cost += room_cost
+        return self._cost
+
+    def remove_batch(self, room_id):
+        self._batches.pop(room_id, None)
+
+    def delete_sensors(self, sensors):
+        for sensor in sensors:
+            room = self._batches[sensor.room_id]
+            room.remove_sensor(sensor)
+
+    def delete_all(self):
+        for room in self._batches.values():
+            room.delete_all()
+
+
+class SensorBatch:
+    def __init__(self, room):
+        self._id = room.id
+        self._room = room
+        self._sensors = []
+
+    def remove_sensors(self):
+        self._sensors = []
+
+    def remove_sensor(self, sensor):
+        if sensor in self._sensors:
+            self._sensors.remove(sensor)
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def room(self):
+        return self._room
+
+    @property
+    def sensors(self):
+        return self._sensors
+
+    def create_sensor_on(self, wall, pos=cell_size//2, alpha=0):
+        if isinstance(wall, int):
+            wall = self.room.walls[wall]
+        sensor = Sensor(wall, pos, alpha)
+        self._sensors += [sensor]
+
+    def check_sensors_visibility(self):
+        for sensor in self._sensors:
+            sensor.number_of_pixels = 0
+        for cell in self._room.cells:
+            for pixel in cell.pixels:
+                pixel.number_of_sensors = 0
+                for sensor in self._sensors:
+                    pixel.check_sensor_visibility(self, sensor)
