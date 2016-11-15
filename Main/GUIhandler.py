@@ -1,6 +1,8 @@
 from tkinter import *
 from tkinter import ttk
 
+import math
+
 from Field.FieldHandler import Field, Selectable, Cell, Room, Wall
 from Field.PopulationHandler import Evolution
 from Sensor.SensorHandler import Sensor, SensorField
@@ -18,6 +20,7 @@ class GUIHandler:
         self._field = None
         self._sensor_field = None
         self._evolution = None
+        self._generation_index = 0
 
     @staticmethod
     def _do_nothing():
@@ -122,9 +125,21 @@ class GUIHandler:
                 self._btn_add_sensor.config(state=DISABLED)
 
         if self._evolution is not None:
+            text = self._e_generations_var.get()
+            if text.isnumeric() and text != '':
+                index = int(text)
+                if math.fabs(index) < len(self._evolution.generations):
+                    self._generation_index = index
+                else:
+                    self._e_generations_var.set('')
+                    self._generation_index = 0
+            else:
+                self._e_generations_var.set('')
+                self._generation_index = 0
+
             self._lb_field.delete(0, self._lb_field.size())
-            for i, f in zip(range(len(self._evolution.get_generation(-1).sensor_fields)),
-                            self._evolution.get_generation(-1).sensor_fields):
+            sorted_sensor_fields = self._evolution.get_generation(self._generation_index).get_sorted()
+            for i, f in zip(range(len(sorted_sensor_fields)), sorted_sensor_fields):
                 self._lb_field.insert(i, "Field "+str(i)+" cost: "+str(f.cost))
 
         if self._field.sensor_field is None:
@@ -255,20 +270,35 @@ class GUIHandler:
             self._lb_field.delete(0, self._lb_field.size())
             self._update()
         self._btn_analyze_field = Button(f2, text='Analyze Field', width=30, command=analyze_field)
-        self._btn_analyze_field.grid(row=grid_level, column=0, sticky="nw")
+        self._btn_analyze_field.grid(row=grid_level, column=0, columnspan=2, sticky="nw")
+        grid_level += 1
+
+        def generations_entry(_):
+            self._update()
+
+        self._e_generations_var = StringVar("")
+        self._e_generations = Entry(f2, textvariable=self._e_generations_var)
+        self._e_generations.bind('<Return>', generations_entry)
+        Label(f2, text="Generation:").grid(row=grid_level, column=0, sticky="e")
+        self._e_generations.grid(row=grid_level, column=1)
+        grid_level += 1
+
+        Label(f2, text="SelectField:").grid(row=grid_level, column=0, sticky="w")
         grid_level += 1
 
         def field_selected(evt):
             w = evt.widget
-            index = int(w.curselection()[0])
-            self._field.sensor_field = self._evolution.get_generation(-1).sensor_fields[index]
-            self._update()
+            if len(w.curselection()):
+                index = int(w.curselection()[0])
+                self._field.sensor_field = self._evolution.get_generation(self._generation_index).sensor_fields[index]
+                self._field.sensor_field.check_room_sensors_visibility()
+                self._update()
 
         self._sb_field = Scrollbar(f2)
-        self._lb_field = Listbox(f2, height=20, width=30, selectmode=SINGLE)
+        self._lb_field = Listbox(f2, height=20, width=35, selectmode=SINGLE)
         self._lb_field.bind('<<ListboxSelect>>', field_selected)
-        self._lb_field.grid(row=grid_level, column=0, sticky="nw")
-        self._sb_field.grid(row=grid_level, column=1, sticky="nw")
+        self._lb_field.grid(row=grid_level, column=0, columnspan=2, sticky="nw")
+        self._sb_field.grid(row=grid_level, column=2, sticky="nsw")
         self._lb_field.config(yscrollcommand=self._sb_field.set)
         self._sb_field.config(command=self._lb_field.yview)
         grid_level += 1

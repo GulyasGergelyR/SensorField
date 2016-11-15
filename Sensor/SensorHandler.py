@@ -97,19 +97,8 @@ class SensorField:
 
     def calculate_cost(self):
         self._cost = 0
-        room_cost = 0
         for batch in self._batches.values():
-            room = batch.room
-            for cell in room.cells:
-                for pixel in cell.pixels:
-                    if pixel.number_of_sensors == 0:
-                        room_cost += 2
-                    if pixel.number_of_sensors > 1:
-                        room_cost += pixel.number_of_sensors-1
-            for sensor in batch.sensors:
-                room_cost += sensor.max_number_of_pixels-sensor.number_of_pixels
-            # self._cost += room_cost / len(room.sensors)
-            self._cost += room_cost
+            self._cost += batch.calculate_cost()
         return self._cost
 
     def remove_batch(self, room_id):
@@ -130,6 +119,7 @@ class SensorBatch:
         self._id = room.id
         self._room = room
         self._sensors = []
+        self._cost = 0
 
     def remove_sensors(self):
         self._sensors = []
@@ -137,6 +127,10 @@ class SensorBatch:
     def remove_sensor(self, sensor):
         if sensor in self._sensors:
             self._sensors.remove(sensor)
+
+    @property
+    def cost(self):
+        return self._cost
 
     @property
     def id(self):
@@ -164,3 +158,16 @@ class SensorBatch:
                 pixel.number_of_sensors = 0
                 for sensor in self._sensors:
                     pixel.check_sensor_visibility(self, sensor)
+
+    def calculate_cost(self):
+        self._cost = 0
+        for cell in self._room.cells:
+            for pixel in cell.pixels:
+                if pixel.number_of_sensors == 0:
+                    self._cost += 2
+                if pixel.number_of_sensors > 1:
+                    self._cost += pixel.number_of_sensors - 1
+        for sensor in self._sensors:
+            self._cost += sensor.max_number_of_pixels - sensor.number_of_pixels
+        # self._cost += room_cost / len(room.sensors)
+        return self._cost

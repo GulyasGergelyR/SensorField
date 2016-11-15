@@ -12,7 +12,6 @@ class Evolution:
     def __init__(self, field):
         self._base_field = field
         self._generations = []
-        self._current_time = 0
         self._init_first_generation()
 
     def _init_first_generation(self):
@@ -35,6 +34,11 @@ class Evolution:
             sensor_field.calculate_cost()
             first_generation.add_field(sensor_field)
         self._generations += [first_generation]
+
+    def _init_next_generation(self):
+        generation = Generation(self._base_field)
+
+        self._generations += [generation]
 
     @property
     def generations(self):
@@ -59,3 +63,6 @@ class Generation:
     @property
     def sensor_fields(self):
         return self._sensors_fields
+
+    def get_sorted(self):
+        return sorted(self._sensors_fields, key=lambda x: x.cost)
