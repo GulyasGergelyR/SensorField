@@ -138,9 +138,10 @@ class GUIHandler:
                 self._generation_index = 0
 
             self._lb_field.delete(0, self._lb_field.size())
-            sorted_sensor_fields = self._evolution.get_generation(self._generation_index).get_sorted()
+            sorted_sensor_fields = self._evolution.get_generation(self._generation_index).sensor_fields
             for i, f in zip(range(len(sorted_sensor_fields)), sorted_sensor_fields):
-                self._lb_field.insert(i, "Field "+str(i)+" cost: "+str(f.cost))
+                self._lb_field.insert(i, "Field "+f.field_id+" "+f.parents_ids[0]+"," +
+                                      f.parents_ids[1]+" cost: "+str(f.cost))
 
         if self._field.sensor_field is None:
             self._btn_refresh_sensors.config(state=DISABLED)
@@ -256,6 +257,7 @@ class GUIHandler:
         def refresh_sensors():
             if self._field.sensor_field is not None:
                 self._field.sensor_field.check_room_sensors_visibility()
+                self._field.sensor_field.calculate_cost()
                 self._update()
         self._btn_refresh_sensors = Button(f1, text='Refresh Sensors', width=30, command=refresh_sensors)
         self._btn_refresh_sensors.grid(row=grid_level, column=0, sticky="nw")
@@ -271,6 +273,18 @@ class GUIHandler:
             self._update()
         self._btn_analyze_field = Button(f2, text='Analyze Field', width=30, command=analyze_field)
         self._btn_analyze_field.grid(row=grid_level, column=0, columnspan=2, sticky="nw")
+        grid_level += 1
+
+        def create_new_generation():
+            for _ in range(50):
+                if self._evolution is not None:
+                    self._evolution.create_next_generation()
+                    self._generation_index += 1
+                    self._lb_field.delete(0, self._lb_field.size())
+                    self._update()
+                print("-----------------------------------------------------------")
+        self._btn_create_new_generation = Button(f2, text='Create New Generation', width=30, command=create_new_generation)
+        self._btn_create_new_generation.grid(row=grid_level, column=0, columnspan=2, sticky="nw")
         grid_level += 1
 
         def generations_entry(_):

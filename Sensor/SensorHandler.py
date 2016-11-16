@@ -10,14 +10,27 @@ class Sensor(Selectable):
         super(Sensor, self).__init__(color="#ff3300", selected_color="#00ffff")
         self._pos = pos  # middle of the wall
         self._alpha = alpha  # 0 means perpendicular to the wall, it is in radians
+        self._alpha_max = 0.786
         self._wall = wall
         self._draw_radius = 3 * d_m
         self._select_radius = 6
-        self._effect_radius = 40 * step_size # in step_size
+        self._effect_radius = 40 * step_size  # in step_size
         self._effect_arc = 0.5  # cos(60) = 0.5
 
         self._number_of_pixels = 0
         self._max_number_of_pixels = 1676
+
+    @property
+    def wall(self):
+        return self._wall
+
+    @property
+    def pos(self):
+        return self._pos
+
+    @property
+    def alpha(self):
+        return self._alpha
 
     @property
     def number_of_pixels(self):
@@ -42,6 +55,22 @@ class Sensor(Selectable):
     @property
     def effect_arc(self):
         return self._effect_arc
+
+    def move(self, m):
+        self._pos += m
+        # TODO add alpha handling - now its a sudden change
+        if self._pos < 1:
+            self._wall = self._wall.e2r
+            self._pos += cell_size-2
+
+        if self._pos > cell_size-2:
+            self._wall = self._wall.e2l
+            self._pos -= cell_size-2
+
+    def rotate(self, a):
+        self._alpha += a
+        if math.fabs(self._alpha) > self._alpha_max:
+            self._alpha = self._alpha_max if self._alpha > 0 else -self._alpha_max
 
     def get_look_dir(self):
         wall_normal = [[0, 1], [-1, 0], [0, -1], [1, 0]]
@@ -73,12 +102,22 @@ class Sensor(Selectable):
 
 
 class SensorField:
-    def __init__(self, field):
+    def __init__(self, field, field_id, parents_ids=('', '')):
+        self._field_id = field_id
+        self._parents_ids = parents_ids
         self._field = field
         self._batches = OrderedDict()
         self._cost = 0
         for room in field.rooms.values():
             self._batches[room.id] = SensorBatch(room)
+
+    @property
+    def field_id(self):
+        return self._field_id
+
+    @property
+    def parents_ids(self):
+        return self._parents_ids
 
     @property
     def cost(self):
@@ -99,6 +138,7 @@ class SensorField:
         self._cost = 0
         for batch in self._batches.values():
             self._cost += batch.calculate_cost()
+        print(self._cost)
         return self._cost
 
     def remove_batch(self, room_id):
@@ -125,8 +165,12 @@ class SensorBatch:
         self._sensors = []
 
     def remove_sensor(self, sensor):
-        if sensor in self._sensors:
-            self._sensors.remove(sensor)
+        if isinstance(sensor, int):
+            sensor = self._sensors[sensor]
+        else:
+            if sensor not in self._sensors:
+                return
+        self._sensors.remove(sensor)
 
     @property
     def cost(self):
@@ -164,10 +208,10 @@ class SensorBatch:
         for cell in self._room.cells:
             for pixel in cell.pixels:
                 if pixel.number_of_sensors == 0:
-                    self._cost += 2
+                    self._cost += 3
                 if pixel.number_of_sensors > 1:
                     self._cost += pixel.number_of_sensors - 1
         for sensor in self._sensors:
-            self._cost += sensor.max_number_of_pixels - sensor.number_of_pixels
+            self._cost += (sensor.max_number_of_pixels - sensor.number_of_pixels) * 2
         # self._cost += room_cost / len(room.sensors)
         return self._cost

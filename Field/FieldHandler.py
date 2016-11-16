@@ -75,7 +75,7 @@ class Field:
         self.draw_pixels = False
 
         from Sensor.SensorHandler import SensorField
-        self._sensors_field = SensorField(self)
+        self._sensors_field = SensorField(self, 'test')
 
     def create_copy(self):
         field = Field()
@@ -543,7 +543,7 @@ class Wall(Selectable):
 
     def dist_from(self, m_x, m_y):
         p = self.get_pos()
-        p = [(p[0][0] +p [1][0]) / 2, (p[0][1] + p[1][1]) / 2]
+        p = [(p[0][0] +p[1][0]) / 2, (p[0][1] + p[1][1]) / 2]
         return dist(p, [m_x, m_y])
 
     def point_is_inside(self, m_x, m_y):

@@ -1,4 +1,5 @@
 import math
+import random
 
 
 def function(p1, p2):
@@ -71,4 +72,33 @@ def a(v1, v2):
     if l1 == 0 or l2 == 0:
         return 0
     return (v1[0] * v2[0] + v1[1] * v2[1]) / l(v1) / l(v2)
+
+
+def choose_parents(s):
+    p1 = _get_parent(s)
+    p2 = _get_parent(s)
+    while p1 == p2:
+        p2 = _get_parent(s)
+    return p1, p2
+
+"""
+def _get_parent(s):
+    r1 = random.random() - 0.000001
+    i = 0
+    temp = s[0]
+    while r1 > temp:
+        i += 1
+        temp += s[i]
+    print(i, r1, s)
+    return i
+
+"""
+
+
+def _get_parent(s):
+    r1 = random.random() - 0.000001
+    i = 0
+    while r1 > s[i]:
+        i += 1
+    return i
 
